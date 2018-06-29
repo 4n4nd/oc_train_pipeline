@@ -18,10 +18,10 @@ OP_TYPE = 'list_images'
 SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME') + ":7077"
 metric_name = os.getenv('PROM_METRIC_NAME')
 label = os.getenv('LABEL')
-begin_time = os.getenv('BEGIN_TIMESTAMP')
+start_time = os.getenv('BEGIN_TIMESTAMP')
 end_time = os.getenv('END_TIMESTAMP')
 
-begin_time = 1524000000
+start_time = 1524000000
 end_time = 1526000000
 label = "clam_controller_enabled"
 
@@ -136,13 +136,13 @@ def extract_from_json(json, name, select_labels, where_labels):
 
     return format_df(data)
 
-if LABEL != "":
-    select_labels = ['metric.' + LABEL]
+if label != "":
+    select_labels = ['metric.' + label]
 else:
     select_labels = []
 
 # get data and format
-data = extract_from_json(jsonFile, METRIC_NAME, select_labels, where_labels)
+data = extract_from_json(jsonFile, metric_name, select_labels, where_labels)
 
 data.count()
 data.show()
@@ -165,7 +165,7 @@ def get_data_in_timeframe(df, start_time, end_time):
     return df
 
 
-df1 = get_data_in_timeframe(data, START_TIME, END_TIME)
+df1 = get_data_in_timeframe(data, start_time, end_time)
 df1.printSchema()
 df1.count()
 
@@ -189,7 +189,7 @@ calculate_sample_rate(data)
 
 def calculate_vals_per_label(df):
     # new df with vals per label
-    df.groupBy(LABEL).count().show()
+    df.groupBy(label).count().show()
 
 calculate_vals_per_label(data)
 
@@ -244,10 +244,10 @@ if metric_type == "gauge or counter":
 print("Metric type: ", metric_type)
 
 if metric_type == 'histogram':
-    data_sum = extract_from_json(jsonFile_sum, METRIC_NAME, select_labels, where_labels)
+    data_sum = extract_from_json(jsonFile_sum, metric_name, select_labels, where_labels)
 
     select_labels.append("metric.le")
-    data_bucket = extract_from_json(jsonFile_bucket, METRIC_NAME, select_labels, where_labels)
+    data_bucket = extract_from_json(jsonFile_bucket, metric_name, select_labels, where_labels)
 
     # filter by specific le value
     data_bucket = data_bucket.filter(bucket_val)
@@ -257,7 +257,7 @@ if metric_type == 'histogram':
 
 elif metric_type == 'summary':
     # get metric sum data
-    data_sum = extract_from_json(jsonFile_sum, METRIC_NAME, select_labels, where_labels)
+    data_sum = extract_from_json(jsonFile_sum, metric_name, select_labels, where_labels)
 
     # get metric quantile data
     select_labels.append("metric.quantile")
