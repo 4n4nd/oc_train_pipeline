@@ -64,6 +64,8 @@ items:
             env:
             - name: APP_FILE
               value: ${APP_FILE}
+            - name: GIT_SSL_NO_VERIFY
+              value: 'true'
             forcePull: true
             from:
               kind: DockerImage
