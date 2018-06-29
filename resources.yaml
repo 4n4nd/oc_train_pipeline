@@ -73,9 +73,9 @@ items:
         - imageChange: {}
           type: ImageChange
         - type: ConfigChange
-        - github:
+        - gitlab:
             secret: ${APPLICATION_NAME}
-          type: GitHub
+          type: GitLab
         - generic:
             secret: ${APPLICATION_NAME}
           type: Generic
@@ -122,6 +122,10 @@ items:
                 value: ${DH_CEPH_SECRET}
               - name: DH_CEPH_HOST
                 value: ${DH_CEPH_HOST}
+              - name: PROM_METRIC_NAME
+                value: ${PROM_METRIC_NAME}
+              - name: METRIC_TIME_FRAME
+                value: ${METRIC_TIME_FRAME}
               - name: POD_NAME
                 valueFrom:
                   fieldRef:
@@ -228,7 +232,13 @@ items:
     - description: S3 storage endpoint url
       name: DH_CEPH_HOST
       required: true
+    - description: Metric name on which the analysis is to be performed on
+      name: PROM_METRIC_NAME
+      required: true
 
+    - description: Time frame of data to perform Forecasting
+      name: METRIC_TIME_FRAME
+      required: true
   - apiVersion: v1
     kind: Template
     labels:
