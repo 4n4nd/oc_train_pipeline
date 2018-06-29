@@ -1,5 +1,1 @@
-matplotlib
-fbprophet
-seaborn
-pandas
 pyspark
