@@ -12,9 +12,26 @@ warnings.filterwarnings('ignore')
 
 OP_TYPE = 'list_images'
 
+
 SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME') + ":7077"
+metric_name = os.getenv('PROM_METRIC_NAME')
+label = os.getenv('LABEL')
+begin_time = os.getenv('BEGIN_TIMESTAMP')
+end_time = os.getenv('END_TIMESTAMP')
+
+# Set the configuration
+# random string for instance name
+inst = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+AppName = inst + ' - Ceph S3 Prophet Forecasting'
 #Set the configuration
-conf = pyspark.SparkConf().setAppName('Ceph S3 Prometheus JSON Reader').setMaster(SPARK_MASTER)
+conf = pyspark.SparkConf().setAppName(AppName).setMaster(SPARK_MASTER)
+print("Application Name: ", AppName)
+
+# specify number of nodes need (1-5)
+conf.set("spark.cores.max", "8")
+
+# specify Spark executor memory (default is 1gB)
+conf.set("spark.executor.memory", "4g")
 
 #Set the Spark cluster connection
 sc = pyspark.SparkContext.getOrCreate(conf)
@@ -24,98 +41,277 @@ sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", os.getenv('DH_CEPH_KEY'))
 sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", os.getenv('DH_CEPH_SECRET'))
 sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", os.getenv('DH_CEPH_HOST'))
 
+
 #Get the SQL context
 sqlContext = pyspark.SQLContext(sc)
 
-metric_name = os.getenv('PROM_METRIC_NAME')
+
 #Read the Prometheus JSON BZip data
-jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
+# jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
+
+jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
+
+try:
+    jsonFile_sum = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_sum/')
+    jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_count/')
+    try:
+        jsonFile_bucket = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_bucket/')
+        metric_type = 'histogram'
+    except:
+        jsonFile_quantile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl+'/')
+        metric_type = 'summary'
+except:
+    jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl+'/')
+    metric_type = 'gauge or counter'
 
 #Display the schema of the file
-print('Display schema:')
+print("Metric Type: ", metric_type)
+print("Schema:")
 jsonFile.printSchema()
 
-#Register the created SchemaRDD as a temporary table.
-jsonFile.registerTempTable(metric_name)
+import pyspark.sql.functions as F
+from pyspark.sql.types import StringType
+from pyspark.sql.types import IntegerType
 
-#select time, value, operation_type from kubelet_docker_operations_latency_microseconds where quantile='0.9' and hostname='free-stg-master-03fb6'
+# create function to convert POSIX timestamp to local date
+def convert_timestamp(t):
+    return str(datetime.fromtimestamp(int(t)))
 
-#Filter the results into a data frame
-data = sqlContext.sql("SELECT values, metric.operation_type FROM " + metric_name+" WHERE metric.quantile='0.9' AND metric.hostname='free-stg-master-03fb6'")
+def format_df(df):
+    #reformat data by timestamp and values
+    df = df.withColumn("values", F.explode(df.values))
 
+    df = df.withColumn("timestamp", F.col("values").getItem(0))
+    df = df.sort("timestamp", ascending=True)
+
+    df = df.withColumn("values", F.col("values").getItem(1))
+
+    # drop null values
+    df = df.na.drop(subset=["values"])
+
+    # cast values to int
+    df = df.withColumn("values", df.values.cast("int"))
+
+    # define function to be applied to DF column
+    udf_convert_timestamp = F.udf(lambda z: convert_timestamp(z), StringType())
+
+    # convert timestamp values to datetime timestamp
+    #df = df.withColumn("timestamp", udf_convert_timestamp("timestamp"))
+
+    # calculate log(values) for each row
+    df = df.withColumn("log_values", F.log(df.values))
+
+    return df
+def extract_from_json(json, name, select_labels, where_labels):
+    #Register the created SchemaRDD as a temporary variable
+    json.registerTempTable(name)
+
+    #Filter the results into a data frame
+
+    query = "SELECT values"
+
+    # check if select labels are specified and add query condition if appropriate
+    if len(select_labels) > 0:
+        query = query + ", " + ", ".join(select_labels)
+
+    query = query + " FROM " + name
+
+    # check if where labels are specified and add query condition if appropriate
+    if len(where_labels) > 0:
+        query = query + " WHERE " + " AND ".join(where_labels)
+
+    print(query)
+    data = sqlContext.sql(query)
+
+    #sample data to make it more manageable
+    #data = data.sample(False, fraction = 0.05, seed = 0)
+    # TODO: get rid of this hack
+    data = sqlContext.createDataFrame(data.head(1000), data.schema)
+
+    return format_df(data)
+
+if LABEL != "":
+    select_labels = ['metric.' + LABEL]
+else:
+    select_labels = []
+
+# get data and format
+data = extract_from_json(jsonFile, METRIC_NAME, select_labels, where_labels)
+
+data.count()
 data.show()
 
-data.select('operation_type').distinct().collect()
-sliced_frame = data.filter(data.operation_type == OP_TYPE)
-del data
+def in_time_frame(val, start, end):
+    if (val in range(start, end)):
+        return 1
+    return 0
 
-reduced_sliced_frame = sqlContext.createDataFrame(sliced_frame.head(int(sliced_frame.count()/3)), sliced_frame.schema)
-del sliced_frame
-data_pd = reduced_sliced_frame.toPandas()
+def get_data_in_timeframe(df, start_time, end_time):
+    start_time = int(start_time)
+    end_time = int(end_time)
+    udf_in_time_frame = F.udf(lambda z: in_time_frame(z, start_time, end_time), IntegerType())
+
+    # convert timestamp values to datetime timestamp
+    df = df.withColumn("check_time", udf_in_time_frame("timestamp"))
+    df = df.withColumn("check_time", F.log(df.check_time))
+    df = df.na.drop(subset="check_time")
+    df = df.drop("check_time")
+    return df
+
+
+df1 = get_data_in_timeframe(data, START_TIME, END_TIME)
+df1.printSchema()
+df1.count()
+
+def calculate_sample_rate(df):
+    # define function to be applied to DF column
+    udf_timestamp_hour = F.udf(lambda dt: int(datetime.strptime(dt,'%Y-%m-%d %X').hour), IntegerType())
+
+    # convert timestamp values to datetime timestamp
+
+    # new df with hourly value count
+    vals_per_hour = df.withColumn("hour", udf_timestamp_hour("timestamp")).groupBy("hour").count()
+
+    # average density (samples/hour)
+    avg = vals_per_hour.agg(F.avg(F.col("count"))).head()[0]
+    print("average hourly sample count: ", avg)
+
+    # sort and display hourly count
+    vals_per_hour.sort("hour").show()
+
+calculate_sample_rate(data)
+
+def calculate_vals_per_label(df):
+    # new df with vals per label
+    df.groupBy(LABEL).count().show()
+
+calculate_vals_per_label(data)
+
+from pyspark.sql.window import Window
+
+def get_deltas(df):
+    df_lag = df.withColumn('prev_vals',
+                        F.lag(df['values'])
+                                 .over(Window.partitionBy("timestamp").orderBy("timestamp")))
+
+    result = df_lag.withColumn('deltas', (df_lag['values'] - df_lag['prev_vals']))
+    result = result.drop("prev_vals")
+
+    max_delta = result.agg(F.max(F.col("deltas"))).head()[0]
+    min_delta = result.agg(F.min(F.col("deltas"))).head()[0]
+    mean_delta = result.agg(F.avg(F.col("deltas"))).head()[0]
+
+    return max_delta, min_delta, mean_delta, result
+
+max_delta, min_delta, mean_delta, data = get_deltas(data)
+data.show()
+print("Max delta:", max_delta)
+print("Min delta:", min_delta)
+print("Mean delta:", mean_delta)
+
+# rhmax = current value / max(values)
+# if rhmax (of new point) >> 1, we can assume that the point is an anomaly
+def get_rhmax(df):
+    real_max = df.agg(F.max(F.col("values"))).head()[0]
+    result = df.withColumn("rhmax", df["values"]/real_max)
+    return result
+
+result = get_rhmax(data)
+result.show()
+
+def gauge_counter_separator(df):
+    vals = np.array(df.select("values").collect())
+    diff = vals - np.roll(vals, 1) # this value - previous value (should always be zero or positive for counter)
+    diff[0] = 0 # ignore first difference, there is no value before the first
+    diff[np.where(vals == 0)] = 0
+    # check if these are any negative differences, if not then metric is a counter.
+    # if counter, we must convert it to a gauge by keeping the derivatives
+    if ((diff < 0).sum() == 0):
+        metric_type = 'counter'
+    else:
+        metric_type = 'gauge'
+    return metric_type, df
+
+if metric_type == "gauge or counter":
+    metric_type, data = gauge_counter_separator(data)
+
+print("Metric type: ", metric_type)
+
+if metric_type == 'histogram':
+    data_sum = extract_from_json(jsonFile_sum, METRIC_NAME, select_labels, where_labels)
+
+    select_labels.append("metric.le")
+    data_bucket = extract_from_json(jsonFile_bucket, METRIC_NAME, select_labels, where_labels)
+
+    # filter by specific le value
+    data_bucket = data_bucket.filter(bucket_val)
+
+    data_sum.show()
+    data_bucket.show()
+
+elif metric_type == 'summary':
+    # get metric sum data
+    data_sum = extract_from_json(jsonFile_sum, METRIC_NAME, select_labels, where_labels)
+
+    # get metric quantile data
+    select_labels.append("metric.quantile")
+    data_quantile = extract_from_json(jsonFile_quantile, metric_name, select_labels, where_labels)
+
+    # filter by specific quantile value
+    data_quantile = data_quantile.filter(data_quantile.quantile == quantile_val)
+    # get rid of NaN values once again. This is required once filtering takes place
+    data_quantile = data_quantile.na.drop(subset='values')
+
+    data_sum.show()
+    data_quantile.show()
+
+
+def get_stats(df):
+    # calculate mean
+    mean = df.agg(F.avg(F.col("values"))).head()[0]
+
+    # calculate variance
+    var = df.agg(F.variance(F.col("values"))).head()[0]
+
+    # calculate standard deviation
+    stddev = df.agg(F.stddev(F.col("values"))).head()[0]
+
+    # calculate median
+    median = float(df.approxQuantile("values", [0.5], 0.25)[0])
+
+    return mean, var, stddev, median
+
+mean, var, stddev, median = get_stats(data)
+
+print("\tMean(values): ", mean)
+print("\tVariance(values): ", var)
+print("\tStddev(values): ", stddev)
+print("\tMedian(values): ", median)
+
+data_pd = data.toPandas()
+del data
+# be sure to stop the Spark Session to conserve resources
 sc.stop()
 
-df2 = pd.DataFrame(columns = ['utc_timestamp','value', 'operation_type'])
-#df2 ='
-for op in set(data_pd['operation_type']):
-    dict_raw = data_pd[data_pd['operation_type'] == op]['values']
-    list_raw = []
-    for key in dict_raw.keys():
-        list_raw.extend(dict_raw[key])
-    temp_frame = pd.DataFrame(list_raw, columns = ['utc_timestamp','value'])
-    temp_frame['operation_type'] = op
+from fbprophet import Prophet
 
-    df2 = df2.append(temp_frame)
+#temp_frame = get_filtered_op_frame(OP_TYPE)
+data_pd = data_pd.set_index(data_pd.timestamp)
+data_pd = data_pd[['timestamp','values']]
+OP_TYPE = 'list_images'
+data_pd = data_pd.filter(data_pd.operation_type == OP_TYPE)
 
-df2 = df2[df2['value'] != 'NaN']
-df2['value'] = df2['value'].apply(lambda a: int(a))
-df2['timestamp'] = df2['utc_timestamp'].apply(lambda a : datetime.fromtimestamp(int(a)))
-df2.head()
+train_frame = data_pd[0 : int(0.7*len(data_pd))]
+test_frame = data_pd[int(0.7*len(data_pd)) : ]
 
-df2.reset_index(inplace =True)
-del df2['index']
-df2['operation_type'].unique()
+print(len(train_frame), len(test_frame), len(data_pd))
 
-def get_filtered_op_frame(op_type):
-    temp = df2[df2.operation_type == op_type]
-    temp = temp.sort_values(by='timestamp')
-    return temp
-
-operation_type_value = {}
-for temp in list(df2.operation_type.unique()):
-    operation_type_value[temp] = get_filtered_op_frame(temp)['value']
-
-for temp in operation_type_value.keys():
-    print("Mean of: ",temp, " - ", np.mean(operation_type_value[temp]))
-
-for temp in operation_type_value.keys():
-    print("Variance of: ",temp, " - ", np.var(operation_type_value[temp]))
-
-for temp in operation_type_value.keys():
-    print("Standard Deviation of: ",temp, " - ", np.std(operation_type_value[temp]))
-
-for temp in operation_type_value.keys():
-    print("Median of: ",temp, " - ", np.median(operation_type_value[temp]))
-
-df_whisker =  df2
-df_whisker['log_transformed_value'] = np.log(df2['value'])
-
-df_whisker.head()
-
-for temp in operation_type_value.keys():
-    #fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15,12))
-    temp_frame = get_filtered_op_frame(temp)
-    temp_frame = temp_frame.set_index(temp_frame.timestamp)
-    temp_frame = temp_frame[['log_transformed_value']]
-    temp_frame.plot(figsize=(15,12),title=temp)
-
-temp_frame = get_filtered_op_frame(OP_TYPE)
-temp_frame = temp_frame.set_index(temp_frame.timestamp)
-temp_frame = temp_frame[['timestamp','value']]
-
-train_frame['y'] = train_frame['value']
+train_frame['y'] = train_frame['values']
 train_frame['ds'] = train_frame['timestamp']
 
+
 m = Prophet()
+
 m.fit(train_frame)
 
 future = m.make_future_dataframe(periods= int(len(test_frame) * 1.1),freq= '1MIN')
@@ -123,16 +319,28 @@ forecast = m.predict(future)
 forecast.head()
 
 forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
+# m.plot(forecast,xlabel="Time stamp",ylabel="Value");
+# m.plot_components(forecast);
 
 forecast = forecast[forecasted_features]
 forecast.head()
 
+import pandas as pd
 forecast['timestamp'] = forecast['ds']
+forecast = forecast.set_index(forecast.timestamp)
+#forecast.head()
+test_frame['timestamp'] = pd.to_datetime(test_frame.timestamp)
+#test_frame.head()
 joined_frame = pd.merge(test_frame, forecast, how='inner', on=['timestamp'],left_index=True)
-joined_frame.head()
 
+joined_frame.head()
 joined_frame.count()
-joined_frame['residuals'] = joined_frame['value'] - joined_frame['yhat']
+
+joined_frame['residuals'] = joined_frame['values'] - joined_frame['yhat']
+
+# fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10,6))
+# sns.distplot(joined_frame['residuals'], kde=True, axlabel= 'residuals',bins=50)
+# fig.show()
 
 mean_residuals = np.mean(joined_frame['residuals'])
 std_residuals = np.std(joined_frame['residuals'])
@@ -149,26 +357,12 @@ print(" Mean + 1_STD is: ", int(value_count_1_STD/len(joined_frame) * 100), "% o
 print(" Mean + 2_STD is: ", int(value_count_2_STD/len(joined_frame) * 100), "% of total values")
 print(" Mean + 3_STD is: ", int(value_count_3_STD/len(joined_frame) * 100), "% of total values")
 
+# fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10,6))
+# sns.distplot((joined_frame['residuals'] - mean_residuals)/one_std, kde=True, axlabel= 'residuals',bins=50)
+# fig.show()
 
 joined_frame.set_index(joined_frame['timestamp'],inplace= True)
 joined_frame2 = joined_frame[:int(0.3 * len(joined_frame))]
+# joined_frame2[['values','yhat','yhat_lower','yhat_upper']].plot(figsize=(15,12));
 test_frame['timestamp'].max()
-
-def trace_insight(op_type, return_response = True):
-    df_temp = df2[df2.operation_type == op_type]
-    max_value = df_temp['value'].max()
-    min_value = df_temp['value'].min()
-    median_value = np.median(df_temp['value'])
-    mean = np.mean(df_temp['value'])
-    std = np.std(df_temp['value'])
-    alert_level_upper = mean + 2 * std
-    if return_response:
-        return json.dumps({'min':str(min_value), 'max':str(max_value), 'median':str(median_value), 'mean': str(mean), 'std' :str(std), 'alert_level': str(alert_level_upper)})
-    print ('min',min_value, 'max',max_value,'median',median_value)
-
-
-trace_insight('create_container')
-trace_insight('list_containers')
-
-df_list_containers = get_filtered_op_frame('list_containers')
-df_create_container = get_filtered_op_frame('create_container')
+#Register the created SchemaRDD as a temporary table.
