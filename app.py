@@ -1,5 +1,5 @@
 import os
-os.environ["PYSPARK_SUBMIT_ARGS"] = "--packages=org.apache.hadoop:hadoop-aws:2.7.3 pyspark-shell"
+os.environ["PYSPARK_SUBMIT_ARGS"] = "--packages=com.amazonaws:aws-java-sdk-pom:1.10.34,org.apache.hadoop:hadoop-aws:2.7.3 pyspark-shell"
 import pyspark
 from datetime import datetime
 # import seaborn as sns
