@@ -5,14 +5,16 @@ import sys
 import pyspark
 import os
 from fbprophet import Prophet
+from datetime import datetime
 
 import warnings
 warnings.filterwarnings('ignore')
 
 OP_TYPE = 'list_images'
 
+SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME') + ":7077"
 #Set the configuration
-conf = pyspark.SparkConf().setAppName('Ceph S3 Prometheus JSON Reader').setMaster('local[2]')
+conf = pyspark.SparkConf().setAppName('Ceph S3 Prometheus JSON Reader').setMaster(SPARK_MASTER)
 
 #Set the Spark cluster connection
 sc = pyspark.SparkContext.getOrCreate(conf)
