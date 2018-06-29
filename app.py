@@ -19,6 +19,10 @@ label = os.getenv('LABEL')
 begin_time = os.getenv('BEGIN_TIMESTAMP')
 end_time = os.getenv('END_TIMESTAMP')
 
+begin_time = 1524000000
+end_time = 1526000000
+label = "clam_controller_enabled"
+
 # Set the configuration
 # random string for instance name
 inst = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
