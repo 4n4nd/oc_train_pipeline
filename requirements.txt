@@ -1,1 +1,3 @@
-pyspark
+pandas
+fbprophet
+numpy
