@@ -8,22 +8,27 @@ from fbprophet import Prophet
 import random
 import string
 from datetime import datetime
-
+from datetime import timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
+SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME','spark-cluster.dh-prod-analytics-factory.svc') + ":7077"
+metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_microseconds')
+label = os.getenv('LABEL',"operation_type")
+# start_time = os.getenv('BEGIN_TIMESTAMP')
+# end_time = os.getenv('END_TIMESTAMP')
+
+# SPARK_MASTER = 'spark://spark-cluster.dh-prod-analytics-factory.svc:7077'
+# metric_name = 'kubelet_docker_operations_latency_microseconds'
+start_time = datetime(2018, 6, 1)
+end_time = datetime(2018, 6, 26)
+# label = "operation_type"
 OP_TYPE = 'list_images'
 
+bucket_val = '0.3'
+quantile_val = '0.9'
+where_labels = {}
 
-SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME') + ":7077"
-metric_name = os.getenv('PROM_METRIC_NAME')
-label = os.getenv('LABEL')
-start_time = os.getenv('BEGIN_TIMESTAMP')
-end_time = os.getenv('END_TIMESTAMP')
-
-start_time = 1524000000
-end_time = 1526000000
-label = "clam_controller_enabled"
 
 # Set the configuration
 # random string for instance name
@@ -56,7 +61,6 @@ sqlContext = pyspark.SQLContext(sc)
 # jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
 
 jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
-
 try:
     jsonFile_sum = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_sum/')
     jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_count/')
@@ -71,17 +75,19 @@ except:
     metric_type = 'gauge or counter'
 
 #Display the schema of the file
-print("Metric Type: ", metric_type)
+#print("Metric Type: ", metric_type)
 print("Schema:")
 jsonFile.printSchema()
+
 
 import pyspark.sql.functions as F
 from pyspark.sql.types import StringType
 from pyspark.sql.types import IntegerType
+from pyspark.sql.types import TimestampType
 
 # create function to convert POSIX timestamp to local date
 def convert_timestamp(t):
-    return str(datetime.fromtimestamp(int(t)))
+    return datetime.fromtimestamp(int(t))
 
 def format_df(df):
     #reformat data by timestamp and values
@@ -99,13 +105,15 @@ def format_df(df):
     df = df.withColumn("values", df.values.cast("int"))
 
     # define function to be applied to DF column
-    udf_convert_timestamp = F.udf(lambda z: convert_timestamp(z), StringType())
+    udf_convert_timestamp = F.udf(lambda z: convert_timestamp(z), TimestampType())
 
     # convert timestamp values to datetime timestamp
-    #df = df.withColumn("timestamp", udf_convert_timestamp("timestamp"))
+    df = df.withColumn("timestamp", udf_convert_timestamp("timestamp"))
 
     # calculate log(values) for each row
     df = df.withColumn("log_values", F.log(df.values))
+
+    df = df.na.drop(subset=["values"])
 
     return df
 def extract_from_json(json, name, select_labels, where_labels):
@@ -148,50 +156,47 @@ data.count()
 data.show()
 
 def in_time_frame(val, start, end):
-    if (val in range(start, end)):
+    if val >= start and val <= end:
         return 1
     return 0
 
 def get_data_in_timeframe(df, start_time, end_time):
-    start_time = int(start_time)
-    end_time = int(end_time)
-    udf_in_time_frame = F.udf(lambda z: in_time_frame(z, start_time, end_time), IntegerType())
+    udf_in_time_frame = F.udf(lambda z: in_time_frame(z, start_time, end_time), StringType())
 
     # convert timestamp values to datetime timestamp
     df = df.withColumn("check_time", udf_in_time_frame("timestamp"))
     df = df.withColumn("check_time", F.log(df.check_time))
-    df = df.na.drop(subset="check_time")
+    df = df.na.drop(subset = ["check_time"])
     df = df.drop("check_time")
     return df
 
-
-df1 = get_data_in_timeframe(data, start_time, end_time)
-df1.printSchema()
-df1.count()
+data = get_data_in_timeframe(data, start_time, end_time)
+data.show()
 
 def calculate_sample_rate(df):
     # define function to be applied to DF column
-    udf_timestamp_hour = F.udf(lambda dt: int(datetime.strptime(dt,'%Y-%m-%d %X').hour), IntegerType())
+    udf_timestamp_hour = F.udf(lambda dt: dt.replace(minute=0, second=0) + timedelta(hours=1), TimestampType())
+
 
     # convert timestamp values to datetime timestamp
 
     # new df with hourly value count
-    vals_per_hour = df.withColumn("hour", udf_timestamp_hour("timestamp")).groupBy("hour").count()
+    vals_per_hour = df.withColumn("hourly", udf_timestamp_hour("timestamp")).groupBy("hourly").count()
 
     # average density (samples/hour)
     avg = vals_per_hour.agg(F.avg(F.col("count"))).head()[0]
     print("average hourly sample count: ", avg)
 
     # sort and display hourly count
-    vals_per_hour.sort("hour").show()
+    vals_per_hour.sort("hourly").show()
 
 calculate_sample_rate(data)
 
-def calculate_vals_per_label(df):
+def calculate_vals_per_label(df, df_label):
     # new df with vals per label
-    df.groupBy(label).count().show()
+    df.groupBy(df_label).count().show()
 
-calculate_vals_per_label(data)
+calculate_vals_per_label(data, label)
 
 from pyspark.sql.window import Window
 
@@ -242,6 +247,7 @@ if metric_type == "gauge or counter":
     metric_type, data = gauge_counter_separator(data)
 
 print("Metric type: ", metric_type)
+
 
 if metric_type == 'histogram':
     data_sum = extract_from_json(jsonFile_sum, metric_name, select_labels, where_labels)
