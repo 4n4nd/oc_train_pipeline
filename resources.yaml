@@ -114,6 +114,8 @@ items:
                 value: ${DH_CEPH_SECRET}
               - name: DH_CEPH_HOST
                 value: ${DH_CEPH_HOST}
+              - name: DH_CEPH_HOST
+                value: ${DH_CEPH_BUCKET}
               - name: PROM_METRIC_NAME
                 value: ${PROM_METRIC_NAME}
               - name: SPARK_DEFAULT
@@ -225,6 +227,9 @@ items:
       required: true
     - description: S3 storage endpoint url
       name: DH_CEPH_HOST
+      required: true
+    - description: S3 storage bucket name
+      name: DH_CEPH_BUCKET
       required: true
     - description: Metric name on which the analysis is to be performed on
       name: PROM_METRIC_NAME
