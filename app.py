@@ -12,6 +12,8 @@ from datetime import timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
+from lib.ceph import CephConnect as cp
+
 SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME','spark-cluster.dh-prod-analytics-factory.svc') + ":7077"
 metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_microseconds')
 label = os.getenv('LABEL',"operation_type")
@@ -342,9 +344,9 @@ forecast['timestamp'] = forecast['ds']
 forecast = forecast.set_index(forecast.timestamp)
 #forecast.head()
 
-# session = cp()
-# object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + end_time + ".json"
-# session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json())
+session = cp()
+object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + end_time + ".json"
+session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json())
 
 test_frame['timestamp'] = pd.to_datetime(test_frame.timestamp)
 #test_frame.head()
