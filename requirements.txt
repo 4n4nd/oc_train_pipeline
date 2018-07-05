@@ -1,3 +1,4 @@
 pandas
 fbprophet
 numpy
+boto3
