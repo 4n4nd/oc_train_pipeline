@@ -103,7 +103,7 @@ items:
               - name: OSHINKO_DEL_CLUSTER
                 value: ${OSHINKO_DEL_CLUSTER}
               - name: APP_EXIT
-                value: "true"
+                value: ${APP_EXIT}
               - name: OSHINKO_NAMED_CONFIG
                 value: ${OSHINKO_NAMED_CONFIG}
               - name: OSHINKO_SPARK_DRIVER_CONFIG
@@ -232,3 +232,7 @@ items:
     - description: Time frame of data to perform Forecasting
       name: METRIC_TIME_FRAME
       required: true
+    - description: Exit from the application (It will keep respawning)
+      name: APP_EXIT
+      required: false
+      value: "true"
