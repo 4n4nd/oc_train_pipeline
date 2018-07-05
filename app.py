@@ -63,8 +63,8 @@ sqlContext = pyspark.SQLContext(sc)
 #Read the Prometheus JSON BZip data
 # jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
 prom_host = "prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com"
-# jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
-jsonUrl = "s3a://" + os.getenv('DH_CEPH_BUCKET','DH-DEV-PROMETHEUS-BACKUP') + "/" + prom_host + "/" + metric_name
+jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
+# jsonUrl = "s3a://" + os.getenv('DH_CEPH_BUCKET','DH-DEV-PROMETHEUS-BACKUP') + "/" + prom_host + "/" + metric_name
 try:
     jsonFile_sum = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_sum/')
     jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_count/')
