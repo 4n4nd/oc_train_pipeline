@@ -2,7 +2,9 @@ import pandas as pd
 import json
 import numpy as np
 import sys
+print("Importing pyspark....")
 import pyspark
+print("....done")
 import os
 from fbprophet import Prophet
 import random
@@ -10,7 +12,7 @@ import string
 from datetime import datetime
 from datetime import timedelta
 
-from lib.ceph import CephConnect as cp
+# from lib.ceph import CephConnect as cp
 
 import warnings
 warnings.filterwarnings('ignore')
