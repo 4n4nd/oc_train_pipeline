@@ -9,6 +9,9 @@ import random
 import string
 from datetime import datetime
 from datetime import timedelta
+
+from lib.ceph import CephConnect as cp
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -42,7 +45,7 @@ print("Application Name: ", AppName)
 conf.set("spark.cores.max", "8")
 
 # specify Spark executor memory (default is 1gB)
-conf.set("spark.executor.memory", "4g")
+conf.set("spark.executor.memory", "10g")
 
 #Set the Spark cluster connection
 sc = pyspark.SparkContext.getOrCreate(conf)
@@ -59,8 +62,9 @@ sqlContext = pyspark.SQLContext(sc)
 
 #Read the Prometheus JSON BZip data
 # jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
-
-jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
+prom_host = "prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com"
+# jsonUrl = "s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/" + metric_name
+jsonUrl = "s3a://" + os.getenv('DH_CEPH_BUCKET','DH-DEV-PROMETHEUS-BACKUP') + "/" + prom_host + "/" + metric_name
 try:
     jsonFile_sum = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_sum/')
     jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json(jsonUrl + '_count/')
@@ -340,6 +344,13 @@ forecast.head()
 import pandas as pd
 forecast['timestamp'] = forecast['ds']
 forecast = forecast.set_index(forecast.timestamp)
+
+# Store prediction to ceph
+session = cp()
+object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + end_time + ".json"
+session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json())
+
+
 #forecast.head()
 test_frame['timestamp'] = pd.to_datetime(test_frame.timestamp)
 #test_frame.head()
