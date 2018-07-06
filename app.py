@@ -352,9 +352,10 @@ forecast['timestamp'] = forecast['ds']
 forecast = forecast.set_index(forecast.timestamp)
 #forecast.head()
 
+# Store Forecast to CEPH
 session = cp()
-object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + end_time + ".json"
-session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json())
+object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + str(end_time) + ".json"
+print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
 
 test_frame['timestamp'] = pd.to_datetime(test_frame.timestamp)
 #test_frame.head()
