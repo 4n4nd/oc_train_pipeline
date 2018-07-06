@@ -347,7 +347,7 @@ forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
 forecast = forecast[forecasted_features]
 forecast.head()
 forecast['timestamp'] = forecast['ds']
-forecast = forecast['timestamp','yhat','yhat_lower','yhat_upper']
+forecast = forecast[['timestamp','yhat','yhat_lower','yhat_upper']]
 # Store Forecast to CEPH
 session = cp()
 object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
