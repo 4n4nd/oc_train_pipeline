@@ -346,16 +346,20 @@ forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
 
 forecast = forecast[forecasted_features]
 forecast.head()
+forecast['timestamp'] = forecast['ds']
+forecast = forecast['timestamp','yhat','yhat_lower','yhat_upper']
+# Store Forecast to CEPH
+session = cp()
+object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
+print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
+
 
 import pandas as pd
-forecast['timestamp'] = forecast['ds']
+
 forecast = forecast.set_index(forecast.timestamp)
 #forecast.head()
 
-# Store Forecast to CEPH
-session = cp()
-object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + str(start_time) + "_" + str(end_time) + ".json"
-print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
+
 
 test_frame['timestamp'] = pd.to_datetime(test_frame.timestamp)
 #test_frame.head()

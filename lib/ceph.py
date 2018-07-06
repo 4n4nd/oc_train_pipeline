@@ -28,8 +28,9 @@ class CephConnect:
                               verify=False)
         # prometheus-openshift-devops-monitor.a3c1.starter-us-west-1.openshiftapps.com/container_cpu_usage_percent_by_host/201807040259.json.bz2
         if not object_path:
-            object_path = str(name) + ".bz2"
+            object_path = str(name)
             pass
+        object_path = object_path + ".bz2"
         payload = bz2.compress(values.encode('utf-8'))
         rv = s3.meta.client.put_object(Body=payload,
                                        Bucket=self.boto_settings['object_store'],
