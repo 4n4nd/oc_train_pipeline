@@ -2,8 +2,9 @@ import pandas as pd
 import json
 import numpy as np
 import sys
-import pyspark
 import os
+os.environ["PYSPARK_SUBMIT_ARGS"] = "--packages=org.apache.hadoop:hadoop-aws:2.7.3 pyspark-shell"
+import pyspark
 from fbprophet import Prophet
 import random
 import string
@@ -19,7 +20,11 @@ metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_mi
 label = os.getenv('LABEL',"operation_type")
 # start_time = os.getenv('BEGIN_TIMESTAMP')
 # end_time = os.getenv('END_TIMESTAMP')
+if os.getenv('SPARK_LOCAL')=="True":
+    SPARK_MASTER='local[2]'
+    print("Using local spark")
 
+    pass
 # SPARK_MASTER = 'spark://spark-cluster.dh-prod-analytics-factory.svc:7077'
 # metric_name = 'kubelet_docker_operations_latency_microseconds'
 start_time = datetime(2018, 6, 1)
@@ -302,6 +307,10 @@ print("\tVariance(values): ", var)
 print("\tStddev(values): ", stddev)
 print("\tMedian(values): ", median)
 
+
+OP_TYPE = 'list_images'
+data = data.filter(data.operation_type == OP_TYPE)
+
 data_pd = data.toPandas()
 del data
 # be sure to stop the Spark Session to conserve resources
@@ -312,8 +321,7 @@ from fbprophet import Prophet
 #temp_frame = get_filtered_op_frame(OP_TYPE)
 data_pd = data_pd.set_index(data_pd.timestamp)
 data_pd = data_pd[['timestamp','values']]
-OP_TYPE = 'list_images'
-data_pd = data_pd.filter(data_pd.operation_type == OP_TYPE)
+
 
 train_frame = data_pd[0 : int(0.7*len(data_pd))]
 test_frame = data_pd[int(0.7*len(data_pd)) : ]
