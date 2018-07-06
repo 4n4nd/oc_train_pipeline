@@ -9,6 +9,7 @@ items:
     metadata:
       name: oshinko-py36-conf
     data:
+      workercount: "3"
       sparkimage: radanalyticsio/openshift-spark-py36:latest
 
   - apiVersion: v1
@@ -114,7 +115,7 @@ items:
                 value: ${DH_CEPH_SECRET}
               - name: DH_CEPH_HOST
                 value: ${DH_CEPH_HOST}
-              - name: DH_CEPH_HOST
+              - name: DH_CEPH_BUCKET
                 value: ${DH_CEPH_BUCKET}
               - name: PROM_METRIC_NAME
                 value: ${PROM_METRIC_NAME}
