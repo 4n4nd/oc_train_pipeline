@@ -316,6 +316,11 @@ del data
 # be sure to stop the Spark Session to conserve resources
 sc.stop()
 
+# Delete Spark Cluster
+import subprocess
+subprocess.call("$HOME/delete_spark.sh")
+# os.system("source $HOME/delete_spark.sh")
+
 from fbprophet import Prophet
 
 #temp_frame = get_filtered_op_frame(OP_TYPE)
@@ -348,6 +353,7 @@ forecast = forecast[forecasted_features]
 forecast.head()
 forecast['timestamp'] = forecast['ds']
 forecast = forecast[['timestamp','yhat','yhat_lower','yhat_upper']]
+
 # Store Forecast to CEPH
 session = cp()
 object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
