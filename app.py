@@ -317,9 +317,9 @@ del data
 sc.stop()
 
 # Delete Spark Cluster
-import subprocess
-subprocess.call("$HOME/delete_spark.sh")
-# os.system("source $HOME/delete_spark.sh")
+# import subprocess
+# subprocess.call("$HOME/delete_spark.sh")
+os.system("source $HOME/delete_spark.sh")
 
 from fbprophet import Prophet
 
