@@ -14,17 +14,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from lib.ceph import CephConnect as cp
-
-SPARK_MASTER="spark://" + os.getenv('OSHINKO_CLUSTER_NAME','spark-cluster.dh-prod-analytics-factory.svc') + ":7077"
+from lib.spark import *
 metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_microseconds')
 label = os.getenv('LABEL',"operation_type")
 # start_time = os.getenv('BEGIN_TIMESTAMP')
 # end_time = os.getenv('END_TIMESTAMP')
-if os.getenv('SPARK_LOCAL')=="True":
-    SPARK_MASTER='local[2]'
-    print("Using local spark")
 
-    pass
 # SPARK_MASTER = 'spark://spark-cluster.dh-prod-analytics-factory.svc:7077'
 # metric_name = 'kubelet_docker_operations_latency_microseconds'
 start_time = datetime(2018, 6, 1)
@@ -37,31 +32,9 @@ quantile_val = '0.9'
 where_labels = {}
 
 
-# Set the configuration
-# random string for instance name
-inst = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-AppName = inst + ' - Ceph S3 Prophet Forecasting'
-#Set the configuration
-conf = pyspark.SparkConf().setAppName(AppName).setMaster(SPARK_MASTER)
-print("Application Name: ", AppName)
 
-# specify number of nodes need (1-5)
-conf.set("spark.cores.max", "8")
-
-# specify Spark executor memory (default is 1gB)
-conf.set("spark.executor.memory", "10g")
-
-#Set the Spark cluster connection
-sc = pyspark.SparkContext.getOrCreate(conf)
-
-#Set the Hadoop configurations to access Ceph S3
-sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", os.getenv('DH_CEPH_KEY'))
-sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", os.getenv('DH_CEPH_SECRET'))
-sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", os.getenv('DH_CEPH_HOST'))
-
-
-#Get the SQL context
-sqlContext = pyspark.SQLContext(sc)
+spark_connect = SparkConnect()
+sqlContext = spark_connect.get_sql_context()
 
 
 #Read the Prometheus JSON BZip data
@@ -94,7 +67,7 @@ from pyspark.sql.types import TimestampType
 
 # create function to convert POSIX timestamp to local date
 def convert_timestamp(t):
-    return datetime.fromtimestamp(int(t))
+    return datetime.fromtimestamp(float(t))
 
 def format_df(df):
     #reformat data by timestamp and values
@@ -147,7 +120,7 @@ def extract_from_json(json, name, select_labels, where_labels):
     #sample data to make it more manageable
     #data = data.sample(False, fraction = 0.05, seed = 0)
     # TODO: get rid of this hack
-    data = sqlContext.createDataFrame(data.head(1000), data.schema)
+    # data = sqlContext.createDataFrame(data.head(1000), data.schema)
 
     return format_df(data)
 
@@ -314,7 +287,7 @@ data = data.filter(data.operation_type == OP_TYPE)
 data_pd = data.toPandas()
 del data
 # be sure to stop the Spark Session to conserve resources
-sc.stop()
+spark_connect.stop_spark()
 
 # Delete Spark Cluster
 # import subprocess
