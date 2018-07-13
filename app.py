@@ -33,7 +33,7 @@ where_labels = {}
 
 
 
-spark_connect = SparkConnect()
+spark_connect = SparkConnect(spark_cores=8,spark_memory="14g")
 sqlContext = spark_connect.get_sql_context()
 
 

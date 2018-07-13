@@ -9,6 +9,8 @@ class SparkConnect:
         if not spark_master:
             if os.getenv('SPARK_LOCAL')=="True":
                 spark_master='local[2]'
+                spark_cores = 2
+                spark_memory = "1g"
                 print("Using local spark")
                 pass
             else:
