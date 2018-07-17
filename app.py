@@ -31,6 +31,9 @@ if end_time == "now":
     end_time=int(datetime.datetime.timestamp(now))
     pass
 start_time = os.getenv('BEGIN_TIMESTAMP',int(end_time)-864000) # Defaults to past 10 days
+
+start_time = int(start_time)
+end_time = int(end_time)
 START_TIME = int(start_time)
 END_TIME = int(end_time)
 # label = "operation_type"
