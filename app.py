@@ -40,8 +40,8 @@ where_labels = ["metric.hostname='free-stg-master-03fb6'"]
 spark_connect = SparkConnect(spark_cores=12,spark_memory="14g")
 sqlContext = spark_connect.get_sql_context()
 
-print("Data start time", datetime.fromtimestamp(START_TIME))
-print("Data end time", datetime.fromtimestamp(END_TIME))
+print("Data start time", datetime.datetime.fromtimestamp(START_TIME))
+print("Data end time", datetime.datetime.fromtimestamp(END_TIME))
 
 #Read the Prometheus JSON BZip data
 # jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
@@ -63,7 +63,7 @@ from pyspark.sql.types import TimestampType
 
 # create function to convert POSIX timestamp to local date
 def convert_timestamp(t):
-    return datetime.fromtimestamp(float(t))
+    return datetime.datetime.fromtimestamp(float(t))
 
 def format_df(df):
     #reformat data by timestamp and values
