@@ -189,7 +189,7 @@ forecast = forecast[forecasted_features]
 print(forecast.head())
 
 forecast['timestamp'] = forecast['ds']
-forecast['values'] = test_frame['values']
+forecast['values'] = data_pd['values']
 forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
 
 # Store Forecast to CEPH
