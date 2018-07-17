@@ -40,6 +40,8 @@ where_labels = ["metric.hostname='free-stg-master-03fb6'"]
 spark_connect = SparkConnect(spark_cores=12,spark_memory="14g")
 sqlContext = spark_connect.get_sql_context()
 
+print("Data start time", datetime.fromtimestamp(START_TIME))
+print("Data end time", datetime.fromtimestamp(END_TIME))
 
 #Read the Prometheus JSON BZip data
 # jsonFile = sqlContext.read.option("multiline", True).option("mode", "PERMISSIVE").json("s3a://DH-DEV-PROMETHEUS-BACKUP/prometheus-openshift-devops-monitor.1b7d.free-stg.openshiftapps.com/"+metric_name+"/")
@@ -61,7 +63,7 @@ from pyspark.sql.types import TimestampType
 
 # create function to convert POSIX timestamp to local date
 def convert_timestamp(t):
-    return datetime.datetime.fromtimestamp(float(t))
+    return datetime.fromtimestamp(float(t))
 
 def format_df(df):
     #reformat data by timestamp and values
@@ -151,12 +153,14 @@ spark_connect.stop_spark()
 from fbprophet import Prophet
 
 #temp_frame = get_filtered_op_frame(OP_TYPE)
-OP_TYPE = 'create'
+OP_TYPE = 'sync'
 data_pd = data_pd[data_pd['operation_type'] == OP_TYPE]
 
 
 train_frame = data_pd[0 : int(0.7*len(data_pd))]
 test_frame = data_pd[int(0.7*len(data_pd)) : ]
+
+print(len(train_frame), len(test_frame), len(data_pd))
 
 train_frame['y'] = train_frame['values']
 train_frame['ds'] = train_frame['timestamp']
@@ -168,14 +172,15 @@ m.fit(train_frame)
 
 future = m.make_future_dataframe(periods= int(len(test_frame) * 1.1),freq= '1MIN')
 forecast = m.predict(future)
-forecast.head()
+print(forecast.head())
 
 forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
 # m.plot(forecast,xlabel="Time stamp",ylabel="Value");
 # m.plot_components(forecast);
 
 forecast = forecast[forecasted_features]
-forecast.head()
+print(forecast.head())
+
 forecast['timestamp'] = forecast['ds']
 forecast['values'] = test_frame['values']
 forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
