@@ -61,7 +61,7 @@ from pyspark.sql.types import TimestampType
 
 # create function to convert POSIX timestamp to local date
 def convert_timestamp(t):
-    return datetime.fromtimestamp(float(t))
+    return datetime.datetime.fromtimestamp(float(t))
 
 def format_df(df):
     #reformat data by timestamp and values
@@ -119,13 +119,6 @@ def extract_from_json(json, name, select_labels, where_labels):
 
     return format_df(df)
 
-
-
-
-
-
-
-
 if LABEL != "":
     select_labels = ['metric.' + LABEL]
 else:
@@ -141,8 +134,8 @@ data.show()
 
 
 
-data = data.filter(F.col("timestamp") > datetime.fromtimestamp(START_TIME))
-data = data.filter(F.col("timestamp") < datetime.fromtimestamp(END_TIME))
+data = data.filter(F.col("timestamp") > datetime.datetime.fromtimestamp(START_TIME))
+data = data.filter(F.col("timestamp") < datetime.datetime.fromtimestamp(END_TIME))
 data.count()
 
 
