@@ -30,7 +30,7 @@ end_time = 1531837110
 START_TIME = start_time
 END_TIME = end_time
 # label = "operation_type"
-OP_TYPE = 'list_images'
+OP_TYPE = 'create'
 
 bucket_val = '0.3'
 quantile_val = '0.99'
