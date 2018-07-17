@@ -186,6 +186,9 @@ forecast['values'] = test_frame['values']
 forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
 
 # Store Forecast to CEPH
+start_time = datetime.datetime.fromtimestamp(start_time)
+end_time = datetime.datetime.fromtimestamp(end_time)
+
 session = cp()
 object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
 print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
