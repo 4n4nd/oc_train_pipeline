@@ -28,7 +28,7 @@ end_time = os.getenv('END_TIMESTAMP',"now")
 # end_time = 1531856881
 now = datetime.datetime.now()
 if end_time == "now":
-    end_time=int(datetime.datetime.totimestamp(now))
+    end_time=int(datetime.datetime.timestamp(now))
     pass
 start_time = os.getenv('BEGIN_TIMESTAMP',int(end_time)-864000) # Defaults to past 10 days
 START_TIME = start_time
