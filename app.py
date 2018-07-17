@@ -18,6 +18,7 @@ from lib.spark import *
 metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_microseconds')
 METRIC_NAME = metric_name
 label = os.getenv('LABEL',"operation_type")
+LABEL = label
 # start_time = os.getenv('BEGIN_TIMESTAMP')
 # end_time = os.getenv('END_TIMESTAMP')
 
