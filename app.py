@@ -19,14 +19,18 @@ metric_name = os.getenv('PROM_METRIC_NAME','kubelet_docker_operations_latency_mi
 METRIC_NAME = metric_name
 label = os.getenv('LABEL',"operation_type")
 LABEL = label
-# start_time = os.getenv('BEGIN_TIMESTAMP')
-# end_time = os.getenv('END_TIMESTAMP')
+
+end_time = os.getenv('END_TIMESTAMP',"now")
 
 # SPARK_MASTER = 'spark://spark-cluster.dh-prod-analytics-factory.svc:7077'
 # metric_name = 'kubelet_docker_operations_latency_microseconds'
-start_time = 1530973037
-end_time = 1531837110
-
+# start_time = 1527882480
+# end_time = 1531856881
+now = datetime.datetime.now()
+if end_time == "now":
+    end_time=int(datetime.datetime.totimestamp(now))
+    pass
+start_time = os.getenv('BEGIN_TIMESTAMP',int(end_time)-864000) # Defaults to past 10 days
 START_TIME = start_time
 END_TIME = end_time
 # label = "operation_type"
