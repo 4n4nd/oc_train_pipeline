@@ -36,8 +36,10 @@ start_time = int(start_time)
 end_time = int(end_time)
 START_TIME = int(start_time)
 END_TIME = int(end_time)
+dt_start_time = datetime.datetime.fromtimestamp(start_time)
+dt_end_time = datetime.datetime.fromtimestamp(end_time)
 # label = "operation_type"
-OP_TYPE = 'create'
+# OP_TYPE = 'create'
 
 bucket_val = '0.3'
 quantile_val = '0.99'
@@ -167,6 +169,10 @@ op_type_list = full_data_pd.operation_type.unique()
 
 for operation in op_type_list:
     OP_TYPE = str(operation)
+    print("------------------------------\n\n")
+    print("Training model for Operation Type: ", OP_TYPE)
+    print("------------------------------\n\n")
+
     data_pd = full_data_pd[full_data_pd['operation_type'] == OP_TYPE]
 
 
@@ -199,11 +205,10 @@ for operation in op_type_list:
     forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
 
     # Store Forecast to CEPH
-    start_time = datetime.datetime.fromtimestamp(start_time)
-    end_time = datetime.datetime.fromtimestamp(end_time)
+
 
     session = cp()
-    object_path = "Predictions" + "/" + prom_host + "/" + metric_name + OP_TYPE + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
+    object_path = "Predictions" + "/" + prom_host + "/" + metric_name + OP_TYPE + "_" + (dt_start_time.strftime("%Y%m%d%H%M")) + "_" + (dt_end_time.strftime("%Y%m%d%H%M")) + ".json"
     print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
 
 
