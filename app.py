@@ -175,7 +175,7 @@ for operation in op_type_list:
 
     data_pd = full_data_pd[full_data_pd['operation_type'] == OP_TYPE]
 
-
+    # Change this test frame in the final production when not testing
     train_frame = data_pd[0 : int(0.7*len(data_pd))]
     test_frame = data_pd[int(0.7*len(data_pd)) : ]
 
@@ -205,10 +205,8 @@ for operation in op_type_list:
     forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
 
     # Store Forecast to CEPH
-
-
     session = cp()
-    object_path = "Predictions" + "/" + prom_host + "/" + metric_name + OP_TYPE + "_" + (dt_start_time.strftime("%Y%m%d%H%M")) + "_" + (dt_end_time.strftime("%Y%m%d%H%M")) + ".json"
+    object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "/" + OP_TYPE + "/" + (dt_start_time.strftime("%Y%m%d%H%M")) + "_" + (dt_end_time.strftime("%Y%m%d%H%M")) + ".json"
     print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
 
 
