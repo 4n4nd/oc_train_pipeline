@@ -160,45 +160,51 @@ spark_connect.stop_spark()
 from fbprophet import Prophet
 
 #temp_frame = get_filtered_op_frame(OP_TYPE)
-OP_TYPE = 'sync'
-data_pd = data_pd[data_pd['operation_type'] == OP_TYPE]
+
+#OP_TYPE = 'sync'
+full_data_pd = data_pd
+op_type_list = full_data_pd.operation_type.unique()
+
+for operation in op_type_list:
+    OP_TYPE = str(operation)
+    data_pd = full_data_pd[full_data_pd['operation_type'] == OP_TYPE]
 
 
-train_frame = data_pd[0 : int(0.7*len(data_pd))]
-test_frame = data_pd[int(0.7*len(data_pd)) : ]
+    train_frame = data_pd[0 : int(0.7*len(data_pd))]
+    test_frame = data_pd[int(0.7*len(data_pd)) : ]
 
-print(len(train_frame), len(test_frame), len(data_pd))
+    print(len(train_frame), len(test_frame), len(data_pd))
 
-train_frame['y'] = train_frame['values']
-train_frame['ds'] = train_frame['timestamp']
+    train_frame['y'] = train_frame['values']
+    train_frame['ds'] = train_frame['timestamp']
 
 
-m = Prophet()
+    m = Prophet()
 
-m.fit(train_frame)
+    m.fit(train_frame)
 
-future = m.make_future_dataframe(periods= int(len(test_frame) * 1.1),freq= '1MIN')
-forecast = m.predict(future)
-print(forecast.head())
+    future = m.make_future_dataframe(periods= int(len(test_frame) * 1.1),freq= '1MIN')
+    forecast = m.predict(future)
+    print(forecast.head())
 
-forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
-# m.plot(forecast,xlabel="Time stamp",ylabel="Value");
-# m.plot_components(forecast);
+    forecasted_features = ['ds','yhat','yhat_lower','yhat_upper']
+    # m.plot(forecast,xlabel="Time stamp",ylabel="Value");
+    # m.plot_components(forecast);
 
-forecast = forecast[forecasted_features]
-print(forecast.head())
+    forecast = forecast[forecasted_features]
+    print(forecast.head())
 
-forecast['timestamp'] = forecast['ds']
-forecast['values'] = data_pd['values']
-forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
+    forecast['timestamp'] = forecast['ds']
+    forecast['values'] = data_pd['values']
+    forecast = forecast[['timestamp','values','yhat','yhat_lower','yhat_upper']]
 
-# Store Forecast to CEPH
-start_time = datetime.datetime.fromtimestamp(start_time)
-end_time = datetime.datetime.fromtimestamp(end_time)
+    # Store Forecast to CEPH
+    start_time = datetime.datetime.fromtimestamp(start_time)
+    end_time = datetime.datetime.fromtimestamp(end_time)
 
-session = cp()
-object_path = "Predictions" + "/" + prom_host + "/" + metric_name + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
-print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
+    session = cp()
+    object_path = "Predictions" + "/" + prom_host + "/" + metric_name + OP_TYPE + "_" + (start_time.strftime("%Y%m%d%H%M")) + "_" + (end_time.strftime("%Y%m%d%H%M")) + ".json"
+    print(session.store_data(name = metric_name, object_path = object_path, values = forecast.to_json()))
 
 
 # import pandas as pd
